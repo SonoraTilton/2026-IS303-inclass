@@ -32,3 +32,4 @@ print(ssa[["country", "region"]])
 df["clean_water_pct"] = df["clean_water_pct"].fillna(0)
 print(df[["clean_water_pct"]])
 assert df["clean_water_pct"].notna().all(), "Missing clean water data!"
+
