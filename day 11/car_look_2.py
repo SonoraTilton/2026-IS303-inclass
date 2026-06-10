@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import requests, time
 from peewee import *
 
-db = SqliteDatabase("behicles.db")
+db = SqliteDatabase("vehicles.db")
 
 class Vehicle(Model):
     make = CharField()
@@ -11,8 +11,11 @@ class Vehicle(Model):
     mpg = IntegerField()
     category = CharField()
     tco_10yr = IntegerField()
-class Meta:
-    database = db
+    class Meta:
+        database = db
+
+db.connect()
+db.create_tables([Vehicle])
 
 def get_fuel_data(year, make, model):
     """
@@ -35,14 +38,14 @@ def get_fuel_data(year, make, model):
         vehicle_id = data["menuItem"][0]["value"]
     else:
         vehicle_id = data["menuItem"]["value"]
-    print(vehicle_id)
+#    print(vehicle_id)
 #    mpg = data["vehicle"][22]["comb08"]
 
     #second call to grab mpg for vehicle ID
     url = base_url + f"vehicle/{vehicle_id}"
     response = requests.get(url, headers=base_headers)
     data = response.json()
-    print(data["comb08"])
+#    print(data["comb08"])
     return data["comb08"]
 
 def get_maitenance_costs(make, model):
@@ -63,25 +66,41 @@ def get_maitenance_costs(make, model):
         total_maintenance += int_amount
     return total_maintenance
 
+def store_vehicle(data):
+    existing = Vehicle.get_or_none(
+        (Vehicle.make == data["make"]) &
+        (Vehicle.model == data["model"]) &
+        (Vehicle.year == data["year"])
+        )
+    if existing:
+        print(f"Skipping {data['make']} {data['model']}")
+        return
+    Vehicle.create(**data)
+    print(f"Stored {data['make']}")
+
 list_of_vehicles = [
-    {"year": 2020, "make": "Honda", "model": "Civic", "extra_text": " 4Dr"},
-    {"year": 2026, "make": "BMW", "model": "Z4", "extra_text": " sDrive30i"},
-    {"year": 2020, "make": "Chevrolet", "model": "Blazer", "extra_text": " AWD"},
-    {"year": 2019, "make": "Cadillac", "model": "Escalade", "extra_text": " 2WD"}
-]
+    {"year": 2020, "make": "Honda", "model": "Civic", "extra_text": " 4Dr", "category": "Sedan"},
+    {"year": 2026, "make": "BMW", "model": "Z4", "extra_text": " sDrive30i", "category": "Sports Car"},
+    {"year": 2020, "make": "Chevrolet", "model": "Blazer", "extra_text": " AWD", "category": "SUV"},
+    {"year": 2019, "make": "Cadillac", "model": "Escalade", "extra_text": " 2WD", "category": "SUV"},
+    {"year": 2014, "make": "Nissan", "model": "Versa", "extra_text": "", "category": "Sedan"}
+    ]
+
 for vehicle in list_of_vehicles:
     mpg = get_fuel_data(vehicle["year"], vehicle["make"], vehicle["model"]+vehicle["extra_text"])
     ten_year_maintenance = get_maitenance_costs(vehicle["make"], vehicle["model"])
     tco = 11000*10/int(mpg)*4.5 + ten_year_maintenance
-    print(f"{vehicle["year"], vehicle["make"], vehicle["model"]} TCO: {tco}")
+    if (int(mpg) < 5):
+        print("No MPG data")
+    print(f"{vehicle["year"]} {vehicle["make"]} {vehicle["model"]} TCO: {tco}")
     time.sleep(5)
 
+    vehicle_data = {"make":vehicle["make"], "model":vehicle["model"],
+                    "year":vehicle["year"], "mpg":mpg,
+                    "category":vehicle["category"], "tco_10yr":tco}
+    store_vehicle(vehicle_data)
 
-"""
-response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-soup = BeautifulSoup(response.text, "html.parser")
-table = soup.find_all("table")[0]
-for row in table.find_all("tr")[1:]:
-    cells = [td.get_text(strip=True) for td in row.find_all("td")]
-# Result: Year 1: $207 → Year 10: $670
-"""
+ #   store_vehicle(vehicle_data)
+
+#for v in Vehicle.select():
+#    print(v.make, v.model, v.mpg)
